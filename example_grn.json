@@ -1,0 +1,19 @@
+{
+  "species": [
+    {"name": "X1", "delta": 0},
+    {"name": "X2", "delta": 0},
+    {"name": "Y", "delta": 0.1}
+  ],
+  "genes": [
+    {
+      "alpha": 10,
+      "regulators": [
+        {"name": "X1", "type": 1, "Kd": 5, "n": 2},
+        {"name": "X2", "type": -1, "Kd": 5, "n": 3}
+      ],
+      "products": [{"name": "Y"}],
+      "logic_type": "and"
+    }
+  ]
+}
+  
