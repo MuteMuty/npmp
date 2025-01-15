@@ -1,16 +1,18 @@
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QVBoxLayout, QLabel, QLineEdit, QPushButton,
-                             QComboBox, QListWidget, QWidget, QHBoxLayout, QMessageBox, QCheckBox, QDialog, QListWidgetItem)
+                             QComboBox, QListWidget, QWidget, QHBoxLayout, QMessageBox, QDialog, QListWidgetItem, QTextEdit)
 from PyQt5.QtCore import Qt
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 import matplotlib.pyplot as plt
+import numpy as np
 import grn
+import simulator
 
 class GRNGUI(QMainWindow):
     def __init__(self):
         super().__init__()
 
         self.setWindowTitle("GRN Operations")
-        self.setGeometry(100, 100, 1200, 700)
+        self.setGeometry(100, 100, 1200, 800)
 
         # Initialize GRN object
         self.my_grn = grn.grn()
@@ -118,6 +120,51 @@ class GRNGUI(QMainWindow):
         self.layout.addLayout(self.gene_list_layout)
         self.layout.addLayout(self.network_layout)
 
+        # Simulation Controls Section
+        self.simulation_controls_layout = QVBoxLayout()
+        self.simulation_controls_label = QLabel("Simulation Controls")
+
+        # Single Simulation Section
+        self.single_simulation_layout = QHBoxLayout()
+        self.single_simulation_label = QLabel("Single Simulation Input Values:")
+        self.single_simulation_input = QLineEdit()
+        self.single_simulation_run_button = QPushButton("Run Single Simulation")
+        self.single_simulation_run_button.clicked.connect(self.run_single_simulation)
+
+        self.single_simulation_layout.addWidget(self.single_simulation_label)
+        self.single_simulation_layout.addWidget(self.single_simulation_input)
+        self.single_simulation_layout.addWidget(self.single_simulation_run_button)
+
+        # Sequence Simulation Section
+        self.sequence_simulation_layout = QHBoxLayout()
+        self.sequence_simulation_label = QLabel("Sequence Simulation Input Values (Comma-separated):")
+        self.sequence_simulation_input = QLineEdit()
+        self.sequence_t_single_label = QLabel("t_single:")
+        self.sequence_t_single_input = QLineEdit()
+        self.sequence_simulation_run_button = QPushButton("Run Sequence Simulation")
+        self.sequence_simulation_run_button.clicked.connect(self.run_sequence_simulation)
+
+        self.sequence_simulation_layout.addWidget(self.sequence_simulation_label)
+        self.sequence_simulation_layout.addWidget(self.sequence_simulation_input)
+        self.sequence_simulation_layout.addWidget(self.sequence_t_single_label)
+        self.sequence_simulation_layout.addWidget(self.sequence_t_single_input)
+        self.sequence_simulation_layout.addWidget(self.sequence_simulation_run_button)
+
+        # Add Simulation Controls to Layout
+        self.simulation_controls_layout.addWidget(self.simulation_controls_label)
+        self.simulation_controls_layout.addLayout(self.single_simulation_layout)
+        self.simulation_controls_layout.addLayout(self.sequence_simulation_layout)
+        self.layout.addLayout(self.simulation_controls_layout)
+
+        # Simulation Results Section
+        self.results_layout = QVBoxLayout()
+        self.results_label = QLabel("Simulation Results")
+        self.results_canvas = FigureCanvas(plt.figure())
+
+        self.results_layout.addWidget(self.results_label)
+        self.results_layout.addWidget(self.results_canvas)
+        self.layout.addLayout(self.results_layout)
+
     def add_regulator(self):
         name = self.regulator_name_input.text().strip()
         try:
@@ -134,8 +181,6 @@ class GRNGUI(QMainWindow):
 
             list_item = QListWidgetItem(f"{name} (Type: {reg_type}, Kd: {kd}, n: {n})")
             self.regulator_selection_list.addItem(list_item)
-
-            self.my_grn.add_input_species(name)  # Add input species to the GRN
 
             # Clear inputs
             self.regulator_name_input.clear()
@@ -196,6 +241,47 @@ class GRNGUI(QMainWindow):
         plt.clf()
         self.my_grn.plot_network()
         self.network_canvas.draw()
+
+    def run_single_simulation(self):
+        try:
+            input_values = list(map(float, self.single_simulation_input.text().strip().split(",")))
+            if len(input_values) != len(self.my_grn.input_species_names):
+                raise ValueError("The number of input values must match the number of input species.")
+
+            inputs = np.array(input_values)
+            T, Y = simulator.simulate_single(self.my_grn, inputs)
+
+            plt.clf()
+            plt.plot(T, Y)
+            plt.title("Single Simulation Results")
+            plt.xlabel("Time")
+            plt.ylabel("Output")
+            self.results_canvas.draw()
+        except ValueError as e:
+            QMessageBox.warning(self, "Error", f"Invalid input values: {e}")
+        except Exception as e:
+            QMessageBox.warning(self, "Error", f"Simulation failed: {e}")
+
+    def run_sequence_simulation(self):
+        try:
+            sequence_input = eval(self.sequence_simulation_input.text().strip())
+            if not isinstance(sequence_input, list) or not all(isinstance(t, tuple) and len(t) == len(self.my_grn.input_species_names) for t in sequence_input):
+                raise ValueError("Sequence input must be a list of tuples matching the input species count.")
+
+            t_single = float(self.sequence_t_single_input.text().strip())
+
+            T, Y = simulator.simulate_sequence(self.my_grn, sequence_input, t_single=t_single)
+
+            plt.clf()
+            plt.plot(T, Y)
+            plt.title("Sequence Simulation Results")
+            plt.xlabel("Time")
+            plt.ylabel("Output")
+            self.results_canvas.draw()
+        except ValueError as e:
+            QMessageBox.warning(self, "Error", f"Invalid sequence input: {e}")
+        except Exception as e:
+            QMessageBox.warning(self, "Error", f"Simulation failed: {e}")
 
 if __name__ == "__main__":
     app = QApplication([])
